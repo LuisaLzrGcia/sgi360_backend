@@ -1,0 +1,24 @@
+# Node.js
+node_modules/
+
+# Logs
+logs/
+*.log
+
+# Dependency directories
+pids/
+logs/
+results/
+
+# Debug
+*.iml
+.idea/
+.vscode/
+
+# Dependency files
+package-lock.json
+package.json
+yarn.lock
+
+# dotenv environment variables file
+.env
