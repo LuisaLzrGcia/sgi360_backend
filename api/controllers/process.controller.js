@@ -51,8 +51,8 @@ async function createProcess(req, res) {
       throw err;
     } else {
       const request = new Request(
-        `INSERT INTO [dbo].[process] (name, abbreviation)
-        VALUES (@name, @abbreviation);
+        `INSERT INTO [dbo].[process] (name, abbreviation, power_bi)
+        VALUES (@name, @abbreviation, @power_bi);
         `,
         function (err) {
           if (err) {
@@ -68,6 +68,11 @@ async function createProcess(req, res) {
         "abbreviation",
         TYPES.VarChar,
         newProcess.newAbbreviation
+      );
+      request.addParameter(
+        "power_bi",
+        TYPES.VarChar,
+        newProcess.newPowerBI
       );
       request.on("row", function (columns) {
         columns.forEach(function (column) {
@@ -101,7 +106,7 @@ async function updateProcess(req, res) {
       const request = new Request(
         `
         UPDATE [dbo].[process]
-        SET name = @name, abbreviation = @abbreviation
+        SET name = @name, abbreviation = @abbreviation, power_bi=@newPowerBI
         WHERE id_process_pk = @processId
         `,
         function (err) {
@@ -120,6 +125,11 @@ async function updateProcess(req, res) {
         "abbreviation",
         TYPES.VarChar,
         updatedProcess.newAbbreviation
+      );
+      request.addParameter(
+        "newPowerBI",
+        TYPES.VarChar,
+        updatedProcess.newPowerBI
       );
       request.addParameter("processId", TYPES.Int, updatedProcess.processId);
       request.on("requestCompleted", function (rowCount, more) {

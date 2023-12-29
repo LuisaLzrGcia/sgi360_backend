@@ -8,7 +8,7 @@ function getAudit(req, res) {
   if (!filterAudit) {
     res.status(400).json({ error: "Error" });
     return;
-  }else{
+  } else {
     if (
       !filterAudit.standar ||
       !filterAudit.type ||
@@ -67,10 +67,8 @@ function getAudit(req, res) {
       }
     });
   }
-  
 }
 
-// Función para crear un registro en la tabla "audit"
 async function createAudit(req, res) {
   const newAudit = req.body;
   const connection = new Connection(config);
@@ -169,7 +167,6 @@ async function updateAudit(req, res) {
   });
 }
 
-// Función para eliminar un registro en la tabla "audit"
 async function deleteAudit(req, res) {
   const idAudit = req.params.id;
   console.log(idAudit);
@@ -209,49 +206,56 @@ async function deleteAudit(req, res) {
 
 function getAuditByStandar(req, res) {
   const standar = req.params.standar;
-  
-  // Verificar si el parámetro standar está vacío
+  const year = req.params.year;
+
   if (!standar) {
     res.status(400).json({ error: "Parámetro 'standar' no proporcionado" });
     return;
-  }
-
-  const connection = new Connection(config);
-  connection.connect((err) => {
-    if (err) {
-      connection.close();
-      res.status(500).json({ error: "Error interno del servidor" });
+  } else {
+    if (!year) {
+      res.status(400).json({ error: "Parámetro 'year' no proporcionado" });
       return;
     } else {
-      const request = new Request(
-        `SELECT * FROM standar_audit
-        WHERE standar_name='${standar}'
-        ORDER BY audit_code;`,
-        (err) => {
-          if (err) {
+      const connection = new Connection(config);
+      connection.connect((err) => {
+        if (err) {
+          connection.close();
+          res.status(500).json({ error: "Error interno del servidor" });
+          return;
+        } else {
+          const request = new Request(
+            `SELECT * FROM standar_audit
+            WHERE standar_name='${standar}' AND YEAR(audit_start_date) = ${year}
+            ORDER BY audit_code;`,
+            (err) => {
+              if (err) {
+                connection.close();
+                res.status(500).json({ error: "Error interno del servidor" });
+                return;
+              }
+            }
+          );
+
+          let results = [];
+          request.on("row", (columns) => {
+            const result = {};
+            columns.forEach((column) => {
+              result[column.metadata.colName] =
+                column.value === null ? null : column.value.toString();
+            });
+            results.push(result);
+          });
+
+          request.on("requestCompleted", (rowCount, more) => {
             connection.close();
-            res.status(500).json({ error: "Error interno del servidor" });
+            res.status(200).json(results);
             return;
-          }
+          });
+          connection.execSql(request);
         }
-      );
-      let results = [];
-      request.on("row", (columns) => {
-        const result = {};
-        columns.forEach((column) => {
-          result[column.metadata.colName] =
-            column.value === null ? null : column.value.toString();
-        });
-        results.push(result);
       });
-      request.on("requestCompleted", (rowCount, more) => {
-        connection.close();
-        res.status(200).json(results);
-        return;
-      });
-      connection.execSql(request);
     }
-  });
+  }
 }
 
 module.exports = {
@@ -259,5 +263,5 @@ module.exports = {
   createAudit,
   updateAudit,
   deleteAudit,
-  getAuditByStandar
+  getAuditByStandar,
 };

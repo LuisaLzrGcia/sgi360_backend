@@ -3,46 +3,49 @@ const TYPES = require("tedious").TYPES;
 const config = require("../database/dbConfig");
 const { Connection } = require("tedious");
 
-function getStandar(req, res) {
+function getPerspectives(req, res) {
   const connection = new Connection(config);
   connection.connect((err) => {
     if (err) {
-      connection.close();
       res.status(500).json({ error: "Error interno del servidor" });
-      return;
+      connection.close();
+      throw err;
     } else {
-      const request = new Request(
-        "SELECT * FROM [dbo].[standar] ORDER BY name ASC;",
-        (err) => {
-          if (err) {
-            connection.close();
-            res.status(500).json({ error: "Error interno del servidor" });
-            return;
-          }
+      const request = new Request("SELECT * FROM perspective ORDER BY perspective asc;", (err) => {
+        if (err) {
+          console.error(err);
+          connection.close();
+          return;
         }
-      );
+      });
+
       let results = [];
       request.on("row", (columns) => {
         const result = {};
         columns.forEach((column) => {
           result[column.metadata.colName] =
-            column.value === null ? null : column.value.toString();
+            column.value === null ? null : column.value;
         });
         results.push(result);
       });
+
       request.on("requestCompleted", (rowCount, more) => {
         connection.close();
-        res.status(200).json(results);
+        if (results.length > 0) {
+          res.status(200).json(results);
+        } else {
+          res.status(200).json([]);
+        }
         return;
       });
+
       connection.execSql(request);
     }
   });
 }
 
-// Función para crear un registro en la tabla "standar"
-async function createStandar(req, res) {
-  const newStandar = req.body;
+function createPerspective(req, res) {
+  const newPerspective = req.body;
   const connection = new Connection(config);
   connection.connect();
   connection.on("connect", function (err) {
@@ -52,8 +55,8 @@ async function createStandar(req, res) {
       throw err;
     } else {
       const request = new Request(
-        `INSERT INTO [dbo].[standar] (name, description)
-        VALUES (@name, @description);
+        `INSERT INTO [dbo].[perspective] (perspective)
+        VALUES (@perspective);
         `,
         function (err) {
           if (err) {
@@ -64,8 +67,11 @@ async function createStandar(req, res) {
           }
         }
       );
-      request.addParameter("name", TYPES.NVarChar, newStandar.name);
-      request.addParameter("description", TYPES.NVarChar, newStandar.description);
+      request.addParameter(
+        "perspective",
+        TYPES.NVarChar,
+        newPerspective.perspective
+      );
 
       request.on("row", function (columns) {
         columns.forEach(function (column) {
@@ -87,84 +93,71 @@ async function createStandar(req, res) {
   });
 }
 
-async function updateStandar(req, res) {
-  const updatedStandar = req.body;
+function updatePerspective(req, res) {
+  const { idPerspective, newPerspective } = req.body;
   const connection = new Connection(config);
-  connection.connect();
-  connection.on("connect", function (err) {
+  connection.connect((err) => {
     if (err) {
-      connection.close();
       res.status(500).json({ error: "Error interno del servidor" });
+      connection.close();
       throw err;
     } else {
       const request = new Request(
-        `
-        UPDATE [dbo].[standar]
-        SET name = @name, description = @description
-        WHERE id_standar_pk = @idStandar
-        `,
-        function (err) {
+        "UPDATE perspective SET perspective = @newPerspective WHERE id_perspective_pk = @idPerspective;",
+        (err) => {
           if (err) {
+            console.error(err);
             connection.close();
-            return;
           }
         }
       );
-      request.addParameter("name", TYPES.NVarChar, updatedStandar.name);
-      request.addParameter("description", TYPES.NVarChar, updatedStandar.description);
-      request.addParameter("idStandar", TYPES.Int, updatedStandar.idStandar);
 
-      request.on("requestCompleted", function (rowCount, more) {
+      request.addParameter("idPerspective", TYPES.Int, idPerspective);
+      request.addParameter("newPerspective", TYPES.NVarChar, newPerspective);
+
+      request.on("requestCompleted", (rowCount, more) => {
         connection.close();
-        res.status(201).send({ status: "Successfully" });
-        return;
+        res.status(201).json({ status: "Successfully" });
       });
+
       connection.execSql(request);
     }
   });
 }
 
-// Función para eliminar un registro en la tabla "standar"
-async function deleteStandar(req, res) {
-  const idStandar = req.params.id;
-  console.log(idStandar)
+function deletePerspective(req, res) {
+  const id = req.params.id;
   const connection = new Connection(config);
-  connection.connect();
-  connection.on("connect", function (err) {
+  connection.connect((err) => {
     if (err) {
-      connection.close
       res.status(500).json({ error: "Error interno del servidor" });
-      return
+      connection.close();
+      throw err;
     } else {
       const request = new Request(
-        `DELETE FROM [dbo].[standar] WHERE id_standar_pk = @idStandar`,
-        function (err) {
+        "DELETE FROM perspective WHERE id_perspective_pk=@id;",
+        (err) => {
           if (err) {
+            console.error(err);
             connection.close();
-            res.status(500).json({ error: "Error interno del servidor" });
-            return;
           }
         }
       );
-      request.addParameter("idStandar", TYPES.Int, idStandar);
-      request.on("requestCompleted", function (rowCount, more) {
+      request.addParameter("id", TYPES.Int, id);
+
+      request.on("requestCompleted", (rowCount, more) => {
         connection.close();
-        res.status(201).send({ status: "Successfully" });
-        return
+        res.status(201).json({ status: "Successfully" });
       });
-      request.on("error", function (err) {
-        connection.close();
-        res.status(500).send({ error: "Error interno del servidor" });
-        return
-      });
+
       connection.execSql(request);
     }
   });
 }
 
 module.exports = {
-  getStandar,
-  createStandar,
-  updateStandar,
-  deleteStandar,
+  getPerspectives,
+  createPerspective,
+  updatePerspective,
+  deletePerspective,
 };

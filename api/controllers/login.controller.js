@@ -14,7 +14,7 @@ async function loginUser(req, res) {
       return;
     } else {
       const request = new Request(
-        `SELECT * FROM [dbo].[user] WHERE user_name = @username AND password = @password`,
+        `SELECT * FROM [dbo].[user_process] WHERE user_name = @username AND password = @password`,
         function (err) {
           if (err) {
             connection.close();
@@ -26,7 +26,7 @@ async function loginUser(req, res) {
       request.addParameter("username", TYPES.VarChar, username);
       request.addParameter("password", TYPES.VarChar, password);
       let userFound = false;
-      let userObject = {}; // Objeto para almacenar los datos del usuario
+      let userObject = {}; 
 
       request.on("row", (columns) => {
         columns.forEach((column) => {

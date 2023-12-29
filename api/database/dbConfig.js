@@ -1,12 +1,12 @@
 const { Connection } = require("tedious");
 
 const config = {
-  server: "DESKTOP-3RMCEU7\\SQLEXPRESS", // Actualízame
+  server: "DESKTOP-3RMCEU7\\SQLEXPRESS", 
   authentication: {
     type: "default",
     options: {
-      userName: "admin_sgi360", // Actualízame
-      password: "123456789", // Actualízame
+      userName: "admin_sgi360", 
+      password: "123456789", 
     },
   },
   options: {

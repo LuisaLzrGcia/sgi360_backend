@@ -39,12 +39,66 @@ function getDocuments(req, res) {
     }
   });
 }
+function getDocumentsByProcess(req, res) {
+  const processName = req.params.process;
+  const type = req.params.type;
+  const status = req.params.status;
+  const connection = new Connection(config);
+  connection.connect((err) => {
+    if (err) {
+      connection.close();
+      res.status(500).json({ error: "Error interno del servidor" });
+      return;
+    } else {
+      let whereClause = "process_name = @processName";
+      if (type != "Todos") {
+        whereClause += " AND type = @type";
+      }
+      if (status != "Todos") {
+        whereClause += " AND status = @status";
+      }
+      const request = new Request(
+        `SELECT * FROM [dbo].[document_process] WHERE ${whereClause} ORDER BY code ASC;`,
+        (err) => {
+          if (err) {
+            connection.close();
+            res.status(500).json({ error: "Error interno del servidor" });
+            return;
+          }
+        }
+      );
+      request.addParameter("processName", TYPES.VarChar, processName);
+      if (type !== "Todos") {
+        request.addParameter("type", TYPES.VarChar, type);
+      }
+      if (status !== "Todos") {
+        request.addParameter("status", TYPES.VarChar, status);
+      }
+
+      let results = [];
+      request.on("row", (columns) => {
+        const result = {};
+        columns.forEach((column) => {
+          result[column.metadata.colName] =
+            column.value === null ? null : column.value.toString();
+        });
+        results.push(result);
+      });
+      request.on("requestCompleted", (rowCount, more) => {
+        connection.close();
+        res.status(200).json(results);
+        return;
+      });
+      connection.execSql(request);
+    }
+  });
+}
 
 async function createDocument(req, res) {
   const newDocument = req.body;
   const connection = new Connection(config);
   connection.connect();
-  let responseSent = false; // Variable de control
+  let responseSent = false;
   connection.on("connect", function (err) {
     if (err) {
       connection.close();
@@ -122,10 +176,18 @@ async function updateDocument(req, res) {
       const request = new Request(
         `
         UPDATE [dbo].[documents]
-        SET type = @type, code = @code, title = @title, reviewer = @reviewer, autorizer = @autorizer, 
-            issuance_date = @issuance_date, days = @days, effective_date = @effective_date, 
-            status = @status, id_process_fk = @id_process_fk
-        WHERE id_document_pk = @documentId
+        SET 
+          type = @newType,
+          code = @newCode,
+          title = @newTitle,
+          reviewer = @newReviewer,
+          autorizer = @newAutorizer,
+          issuance_date = @newIssuanceDate,
+          days = @newDays,
+          id_process_fk = @newProcess
+        WHERE
+          id_document_pk = @idDocument;
+
         `,
         function (err) {
           if (err) {
@@ -134,33 +196,27 @@ async function updateDocument(req, res) {
           }
         }
       );
-      request.addParameter("type", TYPES.VarChar, updatedDocument.type);
-      request.addParameter("code", TYPES.VarChar, updatedDocument.code);
-      request.addParameter("title", TYPES.VarChar, updatedDocument.title);
-      request.addParameter("reviewer", TYPES.VarChar, updatedDocument.reviewer);
+      request.addParameter("newType", TYPES.VarChar, updatedDocument.newType);
+      request.addParameter("newCode", TYPES.VarChar, updatedDocument.newCode);
+      request.addParameter("newTitle", TYPES.VarChar, updatedDocument.newTitle);
       request.addParameter(
-        "autorizer",
+        "newReviewer",
         TYPES.VarChar,
-        updatedDocument.autorizer
+        updatedDocument.newReviewer
       );
       request.addParameter(
-        "issuance_date",
+        "newAutorizer",
+        TYPES.VarChar,
+        updatedDocument.newAutorizer
+      );
+      request.addParameter(
+        "newIssuanceDate",
         TYPES.Date,
-        updatedDocument.issuance_date
+        updatedDocument.newIssuanceDate
       );
-      request.addParameter("days", TYPES.Int, updatedDocument.days);
-      request.addParameter(
-        "effective_date",
-        TYPES.Date,
-        updatedDocument.effective_date
-      );
-      request.addParameter("status", TYPES.VarChar, updatedDocument.status);
-      request.addParameter(
-        "id_process_fk",
-        TYPES.Int,
-        updatedDocument.id_process_fk
-      );
-      request.addParameter("documentId", TYPES.Int, updatedDocument.documentId);
+      request.addParameter("newDays", TYPES.Int, updatedDocument.newDays);
+      request.addParameter("newProcess", TYPES.Int, updatedDocument.newProcess);
+      request.addParameter("idDocument", TYPES.Int, updatedDocument.idDocument);
 
       request.on("requestCompleted", function (rowCount, more) {
         connection.close();
@@ -213,4 +269,5 @@ module.exports = {
   createDocument,
   updateDocument,
   deleteDocument,
+  getDocumentsByProcess,
 };

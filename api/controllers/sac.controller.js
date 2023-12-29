@@ -4,8 +4,7 @@ const config = require("../database/dbConfig");
 const { Connection } = require("tedious");
 
 function getSacRecords(req, res) {
-  const { standar, code, process, yearInput, status } = req.body;
-
+  const { standar, code, process, year, status } = req.body;
   const connection = new Connection(config);
   connection.connect((err) => {
     if (err) {
@@ -13,25 +12,28 @@ function getSacRecords(req, res) {
       res.status(500).json({ error: "Error interno del servidor" });
       return;
     } else {
-      // Construir la consulta SQL dinámicamente basada en los parámetros recibidos
       let sqlQuery = `
         SELECT * FROM [dbo].[sac_audit]
         WHERE 1=1`;
 
-      if (standar !== "Todos") {
+      if (standar == "Todos") {
+        sqlQuery += ` `;
+      } else {
         sqlQuery += ` AND standar_name = '${standar}'`;
       }
 
       if (code !== "Todos") {
-        sqlQuery += ` AND code = '${code}'`;
+        sqlQuery += ` AND audit_code = '${code}'`;
       }
 
       if (process !== "Todos") {
         sqlQuery += ` AND process_name = '${process}'`;
       }
 
-      if (yearInput) {
-        sqlQuery += ` AND YEAR(audit_start_date) = ${yearInput}`;
+      if (year != "") {
+        sqlQuery += ` AND YEAR(audit_start_date) = ${year}`;
+      } else {
+        sqlQuery += ` AND YEAR(audit_start_date) = ''`;
       }
 
       if (status !== "Todos") {
@@ -69,8 +71,6 @@ function getSacRecords(req, res) {
   });
 }
 
-
-// Función para crear un registro en la tabla "sac"
 async function createSacRecord(req, res) {
   const newSacRecord = req.body;
   const connection = new Connection(config);
@@ -82,8 +82,8 @@ async function createSacRecord(req, res) {
       throw err;
     } else {
       const request = new Request(
-        `INSERT INTO [dbo].[sac] (id_audit_fk, description, status, id_process_fk)
-        VALUES (@idAudit, @description, @status, @idProcess);
+        `INSERT INTO [dbo].[sac] (id_audit_fk, description, status, id_process_fk, code)
+        VALUES (@idAudit, @description, @status, @idProcess, @code);
         `,
         function (err) {
           if (err) {
@@ -102,6 +102,7 @@ async function createSacRecord(req, res) {
       );
       request.addParameter("status", TYPES.NVarChar, newSacRecord.status);
       request.addParameter("idProcess", TYPES.Int, newSacRecord.idProcess);
+      request.addParameter("code", TYPES.NVarChar, newSacRecord.code);
 
       request.on("row", function (columns) {
         columns.forEach(function (column) {
@@ -123,9 +124,8 @@ async function createSacRecord(req, res) {
   });
 }
 
-// Función para actualizar un registro en la tabla "sac"
 async function updateSacRecord(req, res) {
-  const updatedSacRecord = req.body;
+  const updatedSac = req.body;
   const connection = new Connection(config);
   connection.connect();
   connection.on("connect", function (err) {
@@ -137,12 +137,13 @@ async function updateSacRecord(req, res) {
       const request = new Request(
         `
         UPDATE [dbo].[sac]
-        SET description = @description, status = @status, id_process_fk = @idProcess
+        SET description = @description, status = @status, id_process_fk = @idProcess, code = @codeSac
         WHERE id_sac_pk = @idSac
         `,
         function (err) {
           if (err) {
             connection.close();
+            res.status(500).json({ error: "Error interno del servidor" });
             return;
           }
         }
@@ -150,11 +151,12 @@ async function updateSacRecord(req, res) {
       request.addParameter(
         "description",
         TYPES.NVarChar,
-        updatedSacRecord.description
+        updatedSac.description
       );
-      request.addParameter("status", TYPES.NVarChar, updatedSacRecord.status);
-      request.addParameter("idProcess", TYPES.Int, updatedSacRecord.idProcess);
-      request.addParameter("idSac", TYPES.Int, updatedSacRecord.idSac);
+      request.addParameter("status", TYPES.NVarChar, updatedSac.status);
+      request.addParameter("idProcess", TYPES.Int, updatedSac.idProcess);
+      request.addParameter("idSac", TYPES.Int, updatedSac.idSac);
+      request.addParameter("codeSac", TYPES.NVarChar, updatedSac.codeSac);
 
       request.on("requestCompleted", function (rowCount, more) {
         connection.close();
@@ -166,7 +168,6 @@ async function updateSacRecord(req, res) {
   });
 }
 
-// Función para eliminar un registro en la tabla "sac"
 async function deleteSacRecord(req, res) {
   const idSac = req.params.id;
   const connection = new Connection(config);
@@ -203,10 +204,55 @@ async function deleteSacRecord(req, res) {
   });
 }
 
+async function getSACCode(req, res) {
+  const audit = req.params.audit;
+  const connection = new Connection(config);
+  connection.connect((err) => {
+    if (err) {
+      connection.close();
+      res.status(500).json({ error: "Error interno del servidor" });
+      return;
+    } else {
+      const request = new Request(
+        `SELECT * FROM [dbo].[sac_audit] WHERE audit_code=@audit`,
+        (err) => {
+          if (err) {
+            console.error(err);
+            connection.close();
+            return;
+          }
+        }
+      );
+      request.addParameter("audit", TYPES.NVarChar, audit);
+      let results = [];
+      request.on("row", (columns) => {
+        const result = {};
+        columns.forEach((column) => {
+          result[column.metadata.colName] =
+            column.value === null ? null : column.value.toString();
+        });
+        results.push(result);
+      });
+      request.on("requestCompleted", (rowCount, more) => {
+        if (rowCount === 0) {
+          connection.close();
+          res.status(200).json([]);
+          return;
+        } else {
+          connection.close();
+          res.status(200).json(results);
+          return;
+        }
+      });
+      connection.execSql(request);
+    }
+  });
+}
 
 module.exports = {
   getSacRecords,
   createSacRecord,
   updateSacRecord,
   deleteSacRecord,
+  getSACCode,
 };
